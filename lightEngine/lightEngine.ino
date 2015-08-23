@@ -81,7 +81,7 @@ enum  states {LOW_SPEED = 0, HIGH_SPEED, HIGH_PLATFORM, LOW_PLATFORM, HIGH_PLATF
 #define LOW_STOPPED_SPEED_THRESHOLD .2 * MPH_TO_KNOTTS
 #define HIGH_LOW_PLATFORM_THRESHOLD .25 * PLATFORM_HEIGHT_DELTA
 #define LOW_HIGH_PLATFORM_THRESHOLD .80 * PLATFORM_HEIGHT_DELTA
-
+#define TOP_SPEED 7.0 * MPH_TO_KNOTTS
 #define T1 (filteredAltitude < HIGH_LOW_PLATFORM_THRESHOLD)
 #define T2 (filteredAltitude > LOW_HIGH_PLATFORM_THRESHOLD)
 #define T3 (filteredSpeed < LOW_STOPPED_SPEED_THRESHOLD)
@@ -176,13 +176,35 @@ void loop() {
       state = nextState;
     }
   }
-  for (int i = 0; i < LEDS; i++) {
-  if (oranges[i] != 0)
-    strip.setPixelColor(i, oranges[i]);
-  else
-    strip.setPixelColor(i, thisColor.bgrw);
-  }
 
+  orangeFlame();
+ if (millis() > 5000) {
+    union npxColor duty;
+    duty.bgrws[R] = min(255, 255 * (millis() - 5000) / 5000);
+    duty.bgrws[G] = min(255, 255 * (millis() - 5000) / 30000);
+    duty.bgrws[B] = min(255, 255 * (millis() - 5000) / 100000);
+
+    //orangeHighlights();
+    for (int i = 0; i < LEDS; i++) {
+      union npxColor thisColor;
+      thisColor.bgrw = strip.getPixelColor(i);
+
+
+      if (thisColor.bgrws[R] < duty.bgrws[R])
+        thisColor.bgrws[R] = duty.bgrws[R];
+      if (thisColor.bgrws[G] < duty.bgrws[G])
+        thisColor.bgrws[G] = duty.bgrws[G];
+      if (thisColor.bgrws[B] < duty.bgrws[B])
+        thisColor.bgrws[B] = duty.bgrws[B];
+
+      if (oranges[i] != 0)
+        strip.setPixelColor(i, oranges[i]);
+      else
+        strip.setPixelColor(i, thisColor.bgrw);
+    }
+
+  }
+  
   strip.show();
 
   static long lastErrorCheck =  0;
@@ -200,6 +222,7 @@ void loop() {
   }
 }
 //transition ( (millis() - startTime)5000,30000, 100000)
+/*
 void transition(  union npxColor *from, union  npxColor *to, union npxColor * result, uint16_t durR, uint16_t durG, uint16_t durB, int scalar) {
 
   npxColor duty;
@@ -221,10 +244,10 @@ void transition(  union npxColor *from, union  npxColor *to, union npxColor * re
             thisColor.bgrws[G] = duty.bgrws[G];
           if (thisColor.bgrws[B] < duty.bgrws[B])
             thisColor.bgrws[B] = duty.bgrws[B];
-    */
+    
 
-  }
-}
+ }
+}*/
 
 
 
