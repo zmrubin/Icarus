@@ -8,7 +8,7 @@ void orangeFlame() {
   for (int i = 0; i < LEDS; i++) {
 
     uint32_t thisColor = strip.getPixelColor(i);
-    union npxColor myRed;
+     npxColor myRed;
     myRed.bgrw =  reds[i];
 
     if (blues[i] != 0)
@@ -34,15 +34,15 @@ void orangeFlame() {
 }
 
 void expFade(union npxColor target, uint16_t index, uint16_t rate) {
-  union npxColor thisColor;
+   npxColor thisColor;
   thisColor.bgrw = strip.getPixelColor(index);
   thisColor.bgrws[R] += (target.bgrws[R] - thisColor.bgrws[R] ) * rate / 100;
   thisColor.bgrws[G] += (target.bgrws[G] - thisColor.bgrws[G] ) * rate / 100;
   thisColor.bgrws[B] += (target.bgrws[B] - thisColor.bgrws[B] ) * rate / 100;
   strip.setPixelColor(index, thisColor.bgrw);
 }
-void linFade(union npxColor target, uint16_t index, uint16_t rate) {
-  union npxColor thisColor;
+void linFade( union npxColor target, uint16_t index, uint16_t rate) {
+   npxColor thisColor;
   thisColor.bgrw = strip.getPixelColor(index);
   if (target.bgrws[R] > thisColor.bgrws[R])
     thisColor.bgrws[R] += rate;

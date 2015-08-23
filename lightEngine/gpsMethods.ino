@@ -23,12 +23,12 @@ uint8_t updateGPS() {
       lastLog = millis();
       Serial.println("Logging");
       char sentance[128];
-      sprintf(sentance, "%u/%u/20%u,%f,%f,%f,%f,%f\n\0",GPS.day,GPS.month,GPS.year,GPS.latitudeDegrees,
-      GPS.longitudeDegrees,GPS.speed,GPS.angle,GPS.altitude);
-       uint8_t stringsize = strlen(sentance) ;
+      sprintf(sentance, "%u/%u/20%u,%f,%f,%f,%f,%f,%i\n\0", GPS.day, GPS.month, GPS.year, GPS.latitudeDegrees,
+              GPS.longitudeDegrees, GPS.speed, GPS.angle, GPS.altitude,state);
+      uint8_t stringsize = strlen(sentance) ;
       if (stringsize != logfile.write((uint8_t *)sentance, stringsize))    //write the string to the SD file
-        error(4);
-     // if (strstr(stringptr, "RMC") || strstr(stringptr, "GGA"))  
+        ErrorCode =4;
+      // if (strstr(stringptr, "RMC") || strstr(stringptr, "GGA"))
       logfile.flush();
       Serial.println();
     }
@@ -47,11 +47,11 @@ void initGPS() {
   if (!SD.begin(SD_CS, SD_MOSI, SD_MISO, SD_SCK)) {
     //if (!SD.begin(chipSelect)) {      // if you're using an UNO, you can use this line instead
     Serial.println("Card init. failed!");
-    error(2);
+    ErrorCode = 2;
   }
-  char* filename= "LOG000.csv";
+  char* filename = "LOG000.csv";
   for (uint16_t i = 0; i < 100; i++) {
-    filename[3] = '0' + (i/100) ;
+    filename[3] = '0' + (i / 100) ;
     filename[4] = '0' + (i / 10) % 10;
     filename[5] = '0' + i % 10;
     // create if does not exist, do not open existing, write, sync after write
@@ -61,19 +61,21 @@ void initGPS() {
   }
 
   logfile = SD.open(filename, FILE_WRITE);
-  if ( ! logfile ) {
+  if (!logfile ) {
     Serial.print("Couldnt create ");
     Serial.println(filename);
-    error(3);
+    ErrorCode = 3;
   }
-  Serial.print("Writing to ");
-  Serial.println(filename);
-  char * csvHeader = "Date, Time, Lat, Lon, Speed, Heading, Altitude\n";
-  uint8_t stringsize = strlen(csvHeader);
-  if (stringsize != logfile.write((uint8_t *)csvHeader, stringsize)) {
-    error(4);
+  else {
+    Serial.print("Writing to ");
+    Serial.println(filename);
+    char * csvHeader = "Date, Time, Lat, Lon, Speed, Heading, Altitude,State\n";
+    uint8_t stringsize = strlen(csvHeader);
+    if (stringsize != logfile.write((uint8_t *)csvHeader, stringsize)) {
+      ErrorCode = 4;
+    }
+    logfile.flush();
   }
-  logfile.flush();
   GPS.begin(9600);
 
   GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
@@ -117,18 +119,6 @@ void useInterrupt(boolean v) {
 }
 
 
-void error(uint8_t errno) {
-  while (1) {
-    uint8_t i;
-    for (i = 0; i < errno; i++) {
-      digitalWrite(GPS_LED, HIGH);
-      delay(100);
-      digitalWrite(GPS_LED, LOW);
-      delay(100);
-    }
-    for (i = errno; i < 10; i++) {
-      delay(200);
-    }
-  }
-}
+
+
 
