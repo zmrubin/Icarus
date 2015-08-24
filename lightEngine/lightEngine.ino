@@ -20,6 +20,7 @@ DMX_Master dmx_master ( DMX_MASTER_CHANNELS, RXEN_PIN );
 
 /*********************NeoPixels*************************/
 #define NEO_PIN 6
+#define NEO_PIN2 6
 #define B 0
 #define G 1
 #define R 2
@@ -30,9 +31,9 @@ typedef union npxColor {
   uint8_t bgrws[4];
 } npxColor;
 
-#define LEDS 60
+#define LEN 6
+#define LEDS 60*5/2 + 60 //LEN*60
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(LEDS, NEO_PIN, NEO_GRB + NEO_KHZ800);
-
 uint32_t reds [LEDS];
 uint32_t oranges [LEDS];
 uint32_t blues [LEDS];
@@ -107,6 +108,16 @@ enum  states {LOW_SPEED = 0, HIGH_SPEED, HIGH_PLATFORM, LOW_PLATFORM, HIGH_PLATF
 #define T10 T2
 #define T11 T4
 #define T12 T3
+
+#define THRUSTER_CHANNEL 6
+#define THRUSTER_PHEUMATICS_CHANNEL 40
+#define LIGHT_ENGINE_PIN 34
+#define MAIN_ENGINE_ON  digitalWrite(LIGHT_ENGINE_PIN,HIGH)
+#define MAIN_ENGINE_OFF  digitalWrite(LIGHT_ENGINE_PIN,LOW)
+#define THRUSTERS_UP dmx_master.setChannelValue ( THRUSTER_PHEUMATICS_CHANNEL , 255)
+#define THRUSTERS_DOWN dmx_master.setChannelValue (THRUSTER_PHEUMATICS_CHANNEL  , 0)
+#define THRUSTER_LEDS(r, g, b) dmx_master.setChannelValue(THRUSTER_CHANNEL , 255); dmx_master.setChannelValue(THRUSTER_CHANNEL+4 , r); dmx_master.setChannelValue ( THRUSTER_CHANNEL +5 , g); dmx_master.setChannelValue ( THRUSTER_CHANNEL+6 , b)
+
 unsigned long lastTransitionTime = 0;
 
 float filteredSpeed = 0;
@@ -122,6 +133,7 @@ void setup() {
   pinMode(DMX_TX_PIN, INPUT); // becasue we aren't really using it
   pinMode( RADIO_VT, INPUT);
   pinMode( RADIO_PWR_PIN, OUTPUT);
+  pinMode(LIGHT_ENGINE_PIN, OUTPUT);
   digitalWrite(RADIO_PWR_PIN, HIGH);
 
   reset(reds);
@@ -134,13 +146,13 @@ void setup() {
 void loop() {
 
   uint8_t nextState = state;
-  static unsigned long lastStopGo = 0; 
+  static unsigned long lastStopGo = 0;
   int gpsStatus = updateGPS();
-  if (gpsStatus == 0) {
+  if (1) { //gpsStatus == 0) {
     filteredSpeed = fastFilter(filteredSpeed, GPS.speed, .2);
     filteredAltitude = fastFilter(filteredAltitude, GPS.altitude, .2);
-    Serial.print("Speed: "); Serial.print(filteredSpeed); Serial.println(GPS.speed);
-    Serial.print("Altitude: "); Serial.print(filteredAltitude); Serial.println(GPS.altitude);
+    //Serial.print("Speed: "); Serial.print(filteredSpeed); Serial.println(GPS.speed);
+    //Serial.print("Altitude: "); Serial.print(filteredAltitude); Serial.println(GPS.altitude);
 
     static void (*neoPixelBlendOut)() = &orangeFlame;
 
@@ -149,38 +161,47 @@ void loop() {
         if (T3) nextState = LOW_PLATFORM;
         else if (T5) nextState = HIGH_SPEED;
         else if (T8) nextState = HIGH_PLATFORM_MOTION;
-        else {
 
-        }
+        MAIN_ENGINE_ON;
+        THRUSTERS_DOWN;
+        THRUSTER_LEDS(255, 255, 255);
         break;
       case HIGH_SPEED:
         if (T6) nextState = LOW_SPEED;
         else if (T10) nextState = HIGH_PLATFORM_MOTION;
-        else {
 
-        }
+        MAIN_ENGINE_ON;
+        THRUSTERS_DOWN;
+        THRUSTER_LEDS(random(120,220), random(5,40), 0);
+
         break;
       case HIGH_PLATFORM:
         if (T1) nextState = LOW_PLATFORM;
         else if (T11) nextState = HIGH_PLATFORM_MOTION;
-        else {
 
-        }
+        MAIN_ENGINE_OFF;
+        THRUSTERS_UP;
+        THRUSTER_LEDS(255, 255, 255);
+
         break;
       case LOW_PLATFORM:
         if (T2) nextState = HIGH_PLATFORM;
         else if (T4) nextState = LOW_SPEED;
-        else {
-          orangeFlame();
-        }
+
+        MAIN_ENGINE_OFF;
+        THRUSTERS_DOWN;
+        THRUSTER_LEDS(random(120,220), random(5,40), 0);
+
         break;
       case HIGH_PLATFORM_MOTION:
         if (T7) nextState = LOW_SPEED;
         else if (T9) nextState = HIGH_SPEED;
         else if (T12) nextState = HIGH_PLATFORM;
-        else {
 
-        }
+        MAIN_ENGINE_ON;
+        THRUSTERS_UP;
+        THRUSTER_LEDS(random(220,255), random(40,80), 0);
+
         break;
       default:
         Serial.println("how the fuck did i get here?");
@@ -193,11 +214,12 @@ void loop() {
     else if (RADIO_B) nextState = LOW_SPEED;
     else if (RADIO_C) nextState = HIGH_SPEED;
     else if (RADIO_D) nextState = HIGH_PLATFORM;
+
   }
   if (nextState != state) {
     lastTransitionTime = millis();
-    if(stateType(nextState) != stateType(state))
-    lastStopGo = lastTransitionTime;
+    if (stateType(nextState) != stateType(state))
+      lastStopGo = lastTransitionTime;
     Serial.print("Transitioning from state ");
     Serial.print(state);
     Serial.print(" to ");
@@ -212,7 +234,7 @@ void loop() {
 
     union npxColor duty;
     duty.bgrws[R] = min(255, 255 * (millis() - lastStopGo) / 5000);
-    duty.bgrws[G] = min(255, 255 * (millis() - lastStopGo) / 20000);
+    duty.bgrws[G] = min(255, 255 * (millis() - lastStopGo) / 19000);
     duty.bgrws[B] = min(255, 255 * (millis() - lastStopGo) / 100000);
 
     //orangeHighlights();
@@ -239,14 +261,8 @@ void loop() {
   strip.show();
 
   static long lastErrorCheck =  0;
-  //temporatry
-  if ((millis() - lastErrorCheck) < 500)
-    dmx_master.setChannelValue ( 33, 255 );
-  else
-    dmx_master.setChannelValue ( 33 , 0);
-
-  //(ErrorCode != 0) &&
-  if ( (millis() - lastErrorCheck)  > 1000) {
+  
+  if ( (ErrorCode != 0) && (millis() - lastErrorCheck)  > 1000) {
 
     lastErrorCheck = millis();
     blinkError(ErrorCode);

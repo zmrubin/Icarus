@@ -1,5 +1,4 @@
 
-
 void orangeFlame() {
   baseReds();
   orangeHighlights();
@@ -83,7 +82,7 @@ void orangeHighlights() {
   if ((now - lastUpdateTime) > 30) {
     lastUpdateTime = millis();
     reset(oranges);
-    for (uint16_t i = 0; i < random(1, 5); i++) {
+    for (uint16_t i = 0; i < random(LEN, 5*LEN); i++) {
       int startpoint = random(0, strip.numPixels());
       for (uint16_t j = 0; j < random(1, 3); j++) {
         oranges[wrap(startpoint + j)] = strip.Color(random(200, 255), random(30, 110), 0);
@@ -103,7 +102,7 @@ void blueSpecs() {
   if ((now - lastUpdateTime) > random(60, 200)) {
     lastUpdateTime = millis();
     reset(blues);
-    for (uint16_t i = 0; i < random(1, 4); i++) {
+    for (uint16_t i = 0; i < random(1, 4*LEN); i++) {
       int startpoint = random(0, strip.numPixels());
       for (uint16_t j = 0; j < random(-7, 2); j++) {
         blues[wrap(startpoint + j)] = strip.Color(random(0, 132), random(0, 20), 240);
