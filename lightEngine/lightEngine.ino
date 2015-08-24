@@ -14,7 +14,8 @@
 /*********************DMX*************************/
 
 #define DMX_MASTER_CHANNELS   100
-#define RXEN_PIN                2
+#define RXEN_PIN 2
+#define DMX_TX_PIN 4
 DMX_Master dmx_master ( DMX_MASTER_CHANNELS, RXEN_PIN );
 
 /*********************NeoPixels*************************/
@@ -68,7 +69,19 @@ boolean usingInterrupt = false;
 #define SD_SCK 13
 
 File logfile;
+/*********************Shitty Wireless*************************/
+#define RADIO_A_PIN 47
+#define RADIO_B_PIN 51
+#define RADIO_C_PIN 45
+#define RADIO_D_PIN 49
+#define RADIO_PWR_PIN 53
+#define RADIO_VT 43
 
+#define RADIO_A (digitalRead(RADIO_A_PIN))
+#define RADIO_B (digitalRead(RADIO_B_PIN))
+#define RADIO_C (digitalRead(RADIO_C_PIN))
+#define RADIO_D (digitalRead(RADIO_D_PIN))
+#define RADIO_PRESSED (digitalRead(RADIO_VT))
 /*********************System*************************/
 int ErrorCode = 0;
 uint8_t state = 3;
@@ -106,7 +119,11 @@ void setup() {
   initGPS();
   dmx_master.enable ();
   //dmx_master.setChannelRange ( 2, 25, 127 );
-  pinMode(4, INPUT);
+  pinMode(DMX_TX_PIN, INPUT); // becasue we aren't really using it
+  pinMode( RADIO_VT, INPUT);
+  pinMode( RADIO_PWR_PIN, OUTPUT);
+  digitalWrite(RADIO_PWR_PIN, HIGH);
+
   reset(reds);
   reset(oranges);
   reset(blues);
@@ -116,6 +133,8 @@ void setup() {
 
 void loop() {
 
+  uint8_t nextState = state;
+  static unsigned long lastStopGo = 0; 
   int gpsStatus = updateGPS();
   if (gpsStatus == 0) {
     filteredSpeed = fastFilter(filteredSpeed, GPS.speed, .2);
@@ -124,7 +143,7 @@ void loop() {
     Serial.print("Altitude: "); Serial.print(filteredAltitude); Serial.println(GPS.altitude);
 
     static void (*neoPixelBlendOut)() = &orangeFlame;
-    uint8_t nextState = state;
+
     switch (state) {
       case LOW_SPEED:
         if (T3) nextState = LOW_PLATFORM;
@@ -167,22 +186,34 @@ void loop() {
         Serial.println("how the fuck did i get here?");
         break;
     }
-    if (nextState != state) {
-      lastTransitionTime = millis();
-      Serial.print("Transitioning from state");
-      Serial.print(state);
-      Serial.print("to");
-      Serial.println(nextState);
-      state = nextState;
-    }
+
+  }//force states
+  if ( RADIO_PRESSED) {
+    if (RADIO_A) nextState = LOW_PLATFORM;
+    else if (RADIO_B) nextState = LOW_SPEED;
+    else if (RADIO_C) nextState = HIGH_SPEED;
+    else if (RADIO_D) nextState = HIGH_PLATFORM;
+  }
+  if (nextState != state) {
+    lastTransitionTime = millis();
+    if(stateType(nextState) != stateType(state))
+    lastStopGo = lastTransitionTime;
+    Serial.print("Transitioning from state ");
+    Serial.print(state);
+    Serial.print(" to ");
+    Serial.println(nextState);
+    state = nextState;
   }
 
+
   orangeFlame();
- if (millis() > 5000) {
+  if ((state == LOW_SPEED) || (state == HIGH_SPEED)) {
+
+
     union npxColor duty;
-    duty.bgrws[R] = min(255, 255 * (millis() - 5000) / 5000);
-    duty.bgrws[G] = min(255, 255 * (millis() - 5000) / 30000);
-    duty.bgrws[B] = min(255, 255 * (millis() - 5000) / 100000);
+    duty.bgrws[R] = min(255, 255 * (millis() - lastStopGo) / 5000);
+    duty.bgrws[G] = min(255, 255 * (millis() - lastStopGo) / 20000);
+    duty.bgrws[B] = min(255, 255 * (millis() - lastStopGo) / 100000);
 
     //orangeHighlights();
     for (int i = 0; i < LEDS; i++) {
@@ -204,7 +235,7 @@ void loop() {
     }
 
   }
-  
+
   strip.show();
 
   static long lastErrorCheck =  0;
@@ -244,12 +275,17 @@ void transition(  union npxColor *from, union  npxColor *to, union npxColor * re
             thisColor.bgrws[G] = duty.bgrws[G];
           if (thisColor.bgrws[B] < duty.bgrws[B])
             thisColor.bgrws[B] = duty.bgrws[B];
-    
+
 
  }
 }*/
 
-
+uint8_t stateType(uint8_t s) {
+  if (s <= 1)
+    return 1;
+  else
+    return 0;
+}
 
 
 

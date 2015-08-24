@@ -15,7 +15,7 @@ void orangeFlame() {
       strip.setPixelColor(i, blues[i]);
 
      if (((thisColor & 0xff) > 0) && blues[i] != 0)  //has some blue that needs to fade away
-      linFade(myRed, i, 3);
+      linFade(myRed, i, 5);
 
 
     else if (oranges[i] != 0)
@@ -70,7 +70,7 @@ void baseReds() {
   if ((now - lastUpdateTime) > 50) {
     lastUpdateTime = millis();
     for (int i = 0; i < strip.numPixels(); i++) {
-      reds[i] = strip.Color(random(200, 255), 0, 0);
+      reds[i] = strip.Color(random(220, 255), 0, 0);
     }
     //Serial.println("here");
   }
@@ -80,7 +80,7 @@ void baseReds() {
 void orangeHighlights() {
   int now = millis();
   static int lastUpdateTime = 0;
-  if ((now - lastUpdateTime) > 100) {
+  if ((now - lastUpdateTime) > 30) {
     lastUpdateTime = millis();
     reset(oranges);
     for (uint16_t i = 0; i < random(1, 5); i++) {
@@ -103,7 +103,7 @@ void blueSpecs() {
   if ((now - lastUpdateTime) > random(60, 200)) {
     lastUpdateTime = millis();
     reset(blues);
-    for (uint16_t i = 0; i < random(1, 6); i++) {
+    for (uint16_t i = 0; i < random(1, 4); i++) {
       int startpoint = random(0, strip.numPixels());
       for (uint16_t j = 0; j < random(-7, 2); j++) {
         blues[wrap(startpoint + j)] = strip.Color(random(0, 132), random(0, 20), 240);
