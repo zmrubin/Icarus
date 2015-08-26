@@ -1,33 +1,37 @@
 uint8_t updateGPS() {
   static unsigned long lastLog = 0;
-
-  if (! usingInterrupt) {
-    // read data from the GPS in the 'main loop'
-    char c = GPS.read();
-    // if you want to debug, this is a good time to do it!
-    if (GPSECHO)
-      if (c) Serial.print(c);
-  }
-
+  /*
+    if (! usingInterrupt) {
+      // read data from the GPS in the 'main loop'
+      char c = GPS.read();
+      // if you want to debug, this is a good time to do it!
+      if (GPSECHO)
+        if (c) Serial.print(c);
+    }
+  */
   // if a sentence is received, we can check the checksum, parse it...
   if (GPS.newNMEAreceived()) {
+
     if (!GPS.parse( GPS.lastNMEA()))
       return 1;
     // Sentence parsed!
-    Serial.println("OK");
-    if (LOG_FIXONLY && !GPS.fix) {
+    if (!GPS.fix) {
       Serial.print("No Fix");
       return 2;
     }
+
+    //hackattack!
+    if (boundsCheck() != 0)
+      return 4;
     if ((millis() - lastLog) >= 2000) {
       lastLog = millis();
-      Serial.println("Logging");
+      //  Serial.println("Logging");
       char sentance[128];
       sprintf(sentance, "%u/%u/20%u,%f,%f,%f,%f,%f,%i\n\0", GPS.day, GPS.month, GPS.year, GPS.latitudeDegrees,
-              GPS.longitudeDegrees, GPS.speed, GPS.angle, GPS.altitude,state);
+              GPS.longitudeDegrees, GPS.speed, GPS.angle, GPS.altitude, state);
       uint8_t stringsize = strlen(sentance) ;
       if (stringsize != logfile.write((uint8_t *)sentance, stringsize))    //write the string to the SD file
-        ErrorCode =4;
+        ErrorCode = 4;
       // if (strstr(stringptr, "RMC") || strstr(stringptr, "GGA"))
       logfile.flush();
       Serial.println();
@@ -37,6 +41,11 @@ uint8_t updateGPS() {
   return 3;
 }
 
+int boundsCheck() {
+  if (GPS.speed > (15 * MPH_TO_KNOTTS) || GPS.speed < 0) return 1;
+  if ((GPS.altitude > 3000) || GPS.altitude <= 0) return 2;
+  return 0;
+}
 void initGPS() {
   Serial.println("\r\nInitializing GPS");
   pinMode(GPS_LED, OUTPUT);
@@ -50,7 +59,7 @@ void initGPS() {
     ErrorCode = 2;
   }
   char* filename = "LOG000.csv";
-  for (uint16_t i = 0; i < 100; i++) {
+  for (uint16_t i = 0; i < 1000; i++) {
     filename[3] = '0' + (i / 100) ;
     filename[4] = '0' + (i / 10) % 10;
     filename[5] = '0' + i % 10;
@@ -83,7 +92,7 @@ void initGPS() {
   // Turn off updates on antenna status, if the firmware permits it
   GPS.sendCommand(PGCMD_NOANTENNA);
 
-  useInterrupt(true);
+  useInterrupt(usingInterrupt);
 
   Serial.println("GPS initialized!");
 

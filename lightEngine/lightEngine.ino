@@ -31,8 +31,8 @@ typedef union npxColor {
   uint8_t bgrws[4];
 } npxColor;
 
-#define LEN 6
-#define LEDS 60*5/2 + 60 //LEN*60
+#define LEN 2
+#define LEDS LEN*60
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(LEDS, NEO_PIN, NEO_GRB + NEO_KHZ800);
 uint32_t reds [LEDS];
 uint32_t oranges [LEDS];
@@ -46,18 +46,20 @@ uint32_t blues [LEDS];
 
 
 /*********************GPS*************************/
-SoftwareSerial mySerial(8, 7);
+#define mySerial Serial1
 Adafruit_GPS GPS(&mySerial);
-
 // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
 // Set to 'true' if you want to debug and listen to the raw GPS sentences
-#define GPSECHO  true
+#define GPSECHO  false
 /* set to true to only log to SD when GPS has a fix, for debugging, keep it false */
 #define LOG_FIXONLY false
 
-boolean usingInterrupt = false;
+boolean usingInterrupt = true;
 
 // Set the pins used
+
+#define GPS_TXJ 7
+#define GPS_RXJ 8
 #define GPS_CS
 #define GPS_LED 13
 #define GPS_MOSI
@@ -87,8 +89,10 @@ File logfile;
 int ErrorCode = 0;
 uint8_t state = 3;
 enum  states {LOW_SPEED = 0, HIGH_SPEED, HIGH_PLATFORM, LOW_PLATFORM, HIGH_PLATFORM_MOTION};
-#define MPH_TO_KNOTTS 0.868976
+#define MIN_ALTITUDE_GUESS 1900
+#define MAX_ALTITUDE_GUESS MIN_ALTITUDE_GUESS + PLATFORM_HEIGHT_DELTA
 #define PLATFORM_HEIGHT_DELTA 4.2672 // meters
+#define MPH_TO_KNOTTS 0.868976
 #define STOPPED_LOW_SPEED_THRESHOLD .75 * MPH_TO_KNOTTS
 #define LOW_HIGH_SPEED_THRESHOLD 2.8 * MPH_TO_KNOTTS
 #define HIGH_LOW_SPEED_THRESHOLD 2.0 * MPH_TO_KNOTTS
@@ -96,8 +100,10 @@ enum  states {LOW_SPEED = 0, HIGH_SPEED, HIGH_PLATFORM, LOW_PLATFORM, HIGH_PLATF
 #define HIGH_LOW_PLATFORM_THRESHOLD .25 * PLATFORM_HEIGHT_DELTA
 #define LOW_HIGH_PLATFORM_THRESHOLD .80 * PLATFORM_HEIGHT_DELTA
 #define TOP_SPEED 7.0 * MPH_TO_KNOTTS
-#define T1 (filteredAltitude < HIGH_LOW_PLATFORM_THRESHOLD)
-#define T2 (filteredAltitude > LOW_HIGH_PLATFORM_THRESHOLD)
+#define PLATFORM_LOW_GUESS (minAltitude + (maxAltitude-PLATFORM_HEIGHT_DELTA))/2
+
+#define T1 ((filteredAltitude-PLATFORM_LOW_GUESS) < HIGH_LOW_PLATFORM_THRESHOLD)
+#define T2 ((filteredAltitude-PLATFORM_LOW_GUESS) > LOW_HIGH_PLATFORM_THRESHOLD)
 #define T3 (filteredSpeed < LOW_STOPPED_SPEED_THRESHOLD)
 #define T4 (filteredSpeed > STOPPED_LOW_SPEED_THRESHOLD)
 #define T5 (filteredSpeed > LOW_HIGH_SPEED_THRESHOLD)
@@ -121,7 +127,7 @@ enum  states {LOW_SPEED = 0, HIGH_SPEED, HIGH_PLATFORM, LOW_PLATFORM, HIGH_PLATF
 unsigned long lastTransitionTime = 0;
 
 float filteredSpeed = 0;
-float filteredAltitude, minAltitude, maxAltitude = 1190; //rough playa altitude
+float filteredAltitude = MIN_ALTITUDE_GUESS, minAltitude = MIN_ALTITUDE_GUESS, maxAltitude = MAX_ALTITUDE_GUESS; //rough playa altitude
 
 /*********************Program*************************/
 void setup() {
@@ -130,8 +136,11 @@ void setup() {
   initGPS();
   dmx_master.enable ();
   //dmx_master.setChannelRange ( 2, 25, 127 );
+
   pinMode(DMX_TX_PIN, INPUT); // becasue we aren't really using it
   pinMode( RADIO_VT, INPUT);
+  pinMode(GPS_RXJ, INPUT);
+  pinMode(GPS_TXJ, INPUT);
   pinMode( RADIO_PWR_PIN, OUTPUT);
   pinMode(LIGHT_ENGINE_PIN, OUTPUT);
   digitalWrite(RADIO_PWR_PIN, HIGH);
@@ -148,11 +157,21 @@ void loop() {
   uint8_t nextState = state;
   static unsigned long lastStopGo = 0;
   int gpsStatus = updateGPS();
-  if (1) { //gpsStatus == 0) {
+
+  if (gpsStatus == 0) {
     filteredSpeed = fastFilter(filteredSpeed, GPS.speed, .2);
     filteredAltitude = fastFilter(filteredAltitude, GPS.altitude, .2);
-    //Serial.print("Speed: "); Serial.print(filteredSpeed); Serial.println(GPS.speed);
-    //Serial.print("Altitude: "); Serial.print(filteredAltitude); Serial.println(GPS.altitude);
+    if (filteredAltitude < minAltitude) minAltitude = filteredAltitude;
+    else if (filteredAltitude > maxAltitude) maxAltitude = filteredAltitude;
+    if ((maxAltitude - minAltitude) > PLATFORM_HEIGHT_DELTA * 2) { // we gots a problem.
+      Serial.println("we got an altitude problem! resetting to best guesses");
+      Serial.print("minAltitude: "); Serial.println(minAltitude);
+      Serial.print("maxAltitude: "); Serial.println(maxAltitude);
+      minAltitude = MIN_ALTITUDE_GUESS; 
+      maxAltitude = MAX_ALTITUDE_GUESS;
+    }
+    //Serial.print("Speed: "); Serial.print(filteredSpeed); Serial.print("\t"); Serial.println(GPS.speed);
+    //  Serial.print("Altitude: "); Serial.print(filteredAltitude); Serial.print("\t"); Serial.println(GPS.altitude);
 
     static void (*neoPixelBlendOut)() = &orangeFlame;
 
@@ -172,7 +191,7 @@ void loop() {
 
         MAIN_ENGINE_ON;
         THRUSTERS_DOWN;
-        THRUSTER_LEDS(random(120,220), random(5,40), 0);
+        THRUSTER_LEDS(random(120, 220), random(5, 40), 0);
 
         break;
       case HIGH_PLATFORM:
@@ -190,7 +209,7 @@ void loop() {
 
         MAIN_ENGINE_OFF;
         THRUSTERS_DOWN;
-        THRUSTER_LEDS(random(120,220), random(5,40), 0);
+        THRUSTER_LEDS(random(120, 220), random(5, 40), 0);
 
         break;
       case HIGH_PLATFORM_MOTION:
@@ -200,7 +219,7 @@ void loop() {
 
         MAIN_ENGINE_ON;
         THRUSTERS_UP;
-        THRUSTER_LEDS(random(220,255), random(40,80), 0);
+        THRUSTER_LEDS(random(220, 255), random(40, 80), 0);
 
         break;
       default:
@@ -221,9 +240,10 @@ void loop() {
     if (stateType(nextState) != stateType(state))
       lastStopGo = lastTransitionTime;
     Serial.print("Transitioning from state ");
-    Serial.print(state);
+    printState(state);
     Serial.print(" to ");
-    Serial.println(nextState);
+    printState(nextState);
+    Serial.println();
     state = nextState;
   }
 
@@ -261,7 +281,7 @@ void loop() {
   strip.show();
 
   static long lastErrorCheck =  0;
-  
+
   if ( (ErrorCode != 0) && (millis() - lastErrorCheck)  > 1000) {
 
     lastErrorCheck = millis();
@@ -321,5 +341,5 @@ void blinkError(int errno) {
 
 
 float fastFilter(float oldVal, float newVal, float alpha) {
-  return (oldVal - newVal) * alpha + oldVal;
+  return (newVal - oldVal) * alpha + oldVal;
 }
